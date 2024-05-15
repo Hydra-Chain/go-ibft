@@ -9,6 +9,11 @@ import (
 	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
+const (
+	// rcMinQuorumThreshold is the threshold above which the rcMinQuorum is applied
+	rcMinQuorumThreshold uint64 = 5
+)
+
 var (
 	errVotingPowerNotCorrect = errors.New("total voting power is zero or less")
 )
@@ -26,6 +31,10 @@ type ValidatorManager struct {
 	// quorumSize represents quorum for the height specified in the current View
 	quorumSize *big.Int
 
+	// rcMinQuorum represents the voting power needed to create a round change certificate
+	// when round is above rcMinQuorumThreshold for the height specified in the current View
+	rcMinQuorum *big.Int
+
 	// validatorsVotingPower is a map of the validator addresses on their voting power for
 	// the height specified in the current View
 	validatorsVotingPower map[string]*big.Int
@@ -39,6 +48,7 @@ type ValidatorManager struct {
 func NewValidatorManager(backend ValidatorBackend, log Logger) *ValidatorManager {
 	return &ValidatorManager{
 		quorumSize:            big.NewInt(0),
+		rcMinQuorum:           big.NewInt(0),
 		backend:               backend,
 		validatorsVotingPower: nil,
 		log:                   log,
@@ -69,6 +79,7 @@ func (vm *ValidatorManager) setCurrentVotingPower(validatorsVotingPower map[stri
 
 	vm.validatorsVotingPower = validatorsVotingPower
 	vm.quorumSize = calculateQuorum(totalVotingPower)
+	vm.rcMinQuorum = calculateRCMinQuorum(totalVotingPower)
 
 	return nil
 }
@@ -126,12 +137,46 @@ func (vm *ValidatorManager) HasPrepareQuorum(stateName stateType, proposalMessag
 	return vm.HasQuorum(sendersAddressesMap)
 }
 
+// HasRoundChangeQuorum provides information on whether round-change messages have reached the needed quorum.
+// When round is above rcMinQuorumThreshold we allow for easier RC quorum
+// to achieve faster restore in case of network stall. Otherwise we use the default quorum.
+func (vm *ValidatorManager) HasRoundChangeQuorum(currentRound uint64, sendersAddrs map[string]struct{}) bool {
+	if currentRound <= rcMinQuorumThreshold {
+		return vm.HasQuorum(sendersAddrs)
+	}
+
+	vm.vpLock.RLock()
+	defer vm.vpLock.RUnlock()
+
+	if vm.validatorsVotingPower == nil {
+		return false
+	}
+
+	messageVotePower := big.NewInt(0)
+
+	for from := range sendersAddrs {
+		if vote, ok := vm.validatorsVotingPower[from]; ok {
+			messageVotePower.Add(messageVotePower, vote)
+		}
+	}
+
+	return messageVotePower.Cmp(vm.rcMinQuorum) >= 0
+}
+
 // calculateQuorum calculates quorum size which is FLOOR(2 * totalVotingPower / 3) + 1
 func calculateQuorum(totalVotingPower *big.Int) *big.Int {
 	quorum := new(big.Int).Mul(totalVotingPower, big.NewInt(2))
 
 	// this will floor the (2 * totalVotingPower/3) and add 1
 	return quorum.Div(quorum, big.NewInt(3)).Add(quorum, big.NewInt(1))
+}
+
+// calculateRCMinQuorum calculates a special RC quorum size
+// Quorum is FLOOR(30%)
+func calculateRCMinQuorum(totalVotingPower *big.Int) *big.Int {
+	quorum := new(big.Int).Mul(totalVotingPower, big.NewInt(30))
+
+	return quorum.Div(quorum, big.NewInt(100))
 }
 
 func calculateTotalVotingPower(validatorsVotingPower map[string]*big.Int) *big.Int {
