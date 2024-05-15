@@ -191,3 +191,21 @@ func Test_CalculateQuorum(t *testing.T) {
 		require.Equal(t, c.hasQuorum, vm.HasQuorum(c.signers))
 	}
 }
+
+func Test_calculateRCMinQuorum(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		totalVotingPower *big.Int
+		expected         *big.Int
+	}{
+		{
+			totalVotingPower: big.NewInt(9),
+			expected:         nil,
+		},
+	}
+
+	for _, c := range cases {
+		require.Equal(t, c.expected, calculateRCMinQuorum(c.totalVotingPower))
+	}
+}
