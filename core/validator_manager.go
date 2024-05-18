@@ -141,7 +141,7 @@ func (vm *ValidatorManager) HasPrepareQuorum(stateName stateType, proposalMessag
 // When round is above rcMinQuorumThreshold we allow for easier RC quorum
 // to achieve faster restore in case of network stall. Otherwise we use the default quorum.
 func (vm *ValidatorManager) HasRoundChangeQuorum(currentRound uint64, sendersAddrs map[string]struct{}) bool {
-	if vm.rcMinQuorum != nil || currentRound <= rcMinQuorumThreshold {
+	if vm.rcMinQuorum == nil || currentRound <= rcMinQuorumThreshold {
 		return vm.HasQuorum(sendersAddrs)
 	}
 
