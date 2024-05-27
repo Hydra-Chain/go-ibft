@@ -561,3 +561,26 @@ func (m *mockCluster) setBaseTimeout(timeout time.Duration) {
 		node.baseRoundTimeout = timeout
 	}
 }
+
+// IBFT state mock so we can replicate conditions where validators have huge round state differences
+type mockState struct {
+	*state
+	desiredStartRound uint64
+}
+
+func (s *mockState) reset(height uint64) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.seals = nil
+	s.roundStarted = false
+	s.name = newRound
+	s.proposalMessage = nil
+	s.latestPC = nil
+	s.latestPreparedProposal = nil
+
+	s.view = &proto.View{
+		Height: height,
+		Round:  s.desiredStartRound,
+	}
+}

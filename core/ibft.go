@@ -55,13 +55,37 @@ var (
 	errTimeoutExpired = errors.New("round timeout expired")
 )
 
+// State represents the IBFT state
+type State interface {
+	changeState(name stateType)
+	finalizePrepare(certificate *proto.PreparedCertificate, latestPPB *proto.Proposal)
+	getCommittedSeals() []*messages.CommittedSeal
+	getHeight() uint64
+	getLatestPC() *proto.PreparedCertificate
+	getLatestPreparedProposal() *proto.Proposal
+	getProposal() *proto.Proposal
+	getProposalHash() []byte
+	getProposalMessage() *proto.Message
+	getRawDataFromProposal() []byte
+	getRound() uint64
+	getRoundStarted() bool
+	getStateName() stateType
+	getView() *proto.View
+	newRound()
+	reset(height uint64)
+	setCommittedSeals(seals []*messages.CommittedSeal)
+	setProposalMessage(proposalMessage *proto.Message)
+	setRoundStarted(started bool)
+	setView(view *proto.View)
+}
+
 // IBFT represents a single instance of the IBFT state machine
 type IBFT struct {
 	// log is the logger instance
 	log Logger
 
 	// state is the current IBFT node state
-	state *state
+	state State
 
 	// messages is the message storage layer
 	messages Messages

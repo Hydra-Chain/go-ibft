@@ -174,6 +174,13 @@ func (s *state) changeState(name stateType) {
 	s.name = name
 }
 
+func (s *state) getRoundStarted() bool {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.roundStarted
+}
+
 func (s *state) setRoundStarted(started bool) {
 	s.Lock()
 	defer s.Unlock()
