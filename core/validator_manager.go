@@ -32,7 +32,7 @@ type ValidatorManager struct {
 	quorumSize *big.Int
 
 	// rcMinQuorum represents the voting power needed to create a round change certificate
-	// when round is above rcMinQuorumThreshold for the height specified in the current View
+	// when the round is above rcMinQuorumThreshold for the height specified in the current View
 	rcMinQuorum *big.Int
 
 	// validatorsVotingPower is a map of the validator addresses on their voting power for
