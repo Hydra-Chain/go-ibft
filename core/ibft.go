@@ -370,6 +370,13 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 		// Start the state machine worker
 		go i.startRound(ctxRound)
 
+		// Continue sending the RC message in case round is above 4
+		// That way new nodes can collect info about the round of the others to restore faster on halting
+		if currentRound > 4 {
+			i.wg.Add(1)
+			go i.sendRoundChangePeriodically(ctxRound, view)
+		}
+
 		teardown := func() {
 			cancelRound()
 			i.wg.Wait()
@@ -445,6 +452,22 @@ func (i *IBFT) startRound(ctx context.Context) {
 	}
 
 	i.runStates(ctx)
+}
+
+func (i *IBFT) sendRoundChangePeriodically(ctx context.Context, view *proto.View) {
+	defer i.wg.Done()
+
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			i.sendRoundChangeMessage(view.Height, view.Round)
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 // waitForRCC waits for valid RCC for the specified height and round
