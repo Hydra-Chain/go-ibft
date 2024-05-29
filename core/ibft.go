@@ -45,16 +45,6 @@ type Messages interface {
 	Unsubscribe(id messages.SubscriptionID)
 }
 
-const (
-	// DefaultBaseRoundTimeout is the default base round (round 0) timeout
-	DefaultBaseRoundTimeout = 10 * time.Second
-	roundFactorBase         = float64(2)
-)
-
-var (
-	errTimeoutExpired = errors.New("round timeout expired")
-)
-
 // State represents the IBFT state
 type State interface {
 	changeState(name stateType)
@@ -78,6 +68,18 @@ type State interface {
 	setRoundStarted(started bool)
 	setView(view *proto.View)
 }
+
+const (
+	// DefaultBaseRoundTimeout is the default base round (round 0) timeout
+	DefaultBaseRoundTimeout = 10 * time.Second
+	roundFactorBase         = float64(2)
+	longRoundThreshold      = 5 // Rounds above that are considered too long, so additional sync mechanisms are applied
+	periodicTaskInteval     = 30 * time.Second
+)
+
+var (
+	errTimeoutExpired = errors.New("round timeout expired")
+)
 
 // IBFT represents a single instance of the IBFT state machine
 type IBFT struct {
@@ -370,12 +372,7 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 		// Start the state machine worker
 		go i.startRound(ctxRound)
 
-		// Continue sending the RC message in case round is above 4
-		// That way new nodes can collect info about the round of the others to restore faster on halting
-		if currentRound > 4 {
-			i.wg.Add(1)
-			go i.sendRoundChangePeriodically(ctxRound, view)
-		}
+		i.notifyRoundChange(ctxRound, view)
 
 		teardown := func() {
 			cancelRound()
@@ -446,7 +443,7 @@ func (i *IBFT) startRound(ctx context.Context) {
 		i.acceptProposal(proposalMessage)
 		i.log.Debug("block proposal accepted")
 
-		i.sendPreprepareMessage(proposalMessage)
+		i.notifyPreprepare(ctx, view.Round, proposalMessage)
 
 		i.log.Debug("pre-prepare message multicasted")
 	}
@@ -454,20 +451,29 @@ func (i *IBFT) startRound(ctx context.Context) {
 	i.runStates(ctx)
 }
 
-func (i *IBFT) sendRoundChangePeriodically(ctx context.Context, view *proto.View) {
-	defer i.wg.Done()
-
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
+// notifyRoundChange multicast the round change message on a given interval in case round is above longRoundThreshold
+// That way new nodes can collect info about the round of the others to restore faster on halting
+func (i *IBFT) notifyRoundChange(ctx context.Context, view *proto.View) {
+	if view.Round > longRoundThreshold {
+		go runTaskPeriodically(ctx, &i.wg, func() {
 			i.sendRoundChangeMessage(view.Height, view.Round)
-		case <-ctx.Done():
-			return
-		}
+		}, periodicTaskInteval)
 	}
+}
+
+// notifyPreprepare multicast the preprepare message.
+// Continue sending the preprepare message in case round is above longRoundThreshold.
+// That way new nodes can enter the prepare phase
+func (i *IBFT) notifyPreprepare(ctx context.Context, currentRound uint64, message *proto.Message) {
+	if currentRound > longRoundThreshold {
+		go runTaskPeriodically(ctx, &i.wg, func() {
+			i.sendPreprepareMessage(message)
+		}, periodicTaskInteval)
+
+		return
+	}
+
+	i.sendPreprepareMessage(message)
 }
 
 // waitForRCC waits for valid RCC for the specified height and round
