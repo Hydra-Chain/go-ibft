@@ -1355,6 +1355,10 @@ func (i *IBFT) subscribe(details messages.SubscriptionDetails) *messages.Subscri
 //   - round 3: 4 sec
 //   - round 4: 8 sec
 func getRoundTimeout(baseRoundTimeout, additionalTimeout time.Duration, round uint64) time.Duration {
+	if round > longRoundThreshold {
+		return 10 * time.Minute
+	}
+
 	var (
 		baseDuration = int(baseRoundTimeout)
 		roundFactor  = int(math.Pow(roundFactorBase, float64(round)))
