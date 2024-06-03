@@ -15,6 +15,10 @@ import (
 
 /*	HELPERS */
 
+const (
+	testVotingPower int64 = 10
+)
+
 var (
 	validEthereumBlock = []byte("valid ethereum block")
 	validProposalHash  = []byte("valid proposal hash")
@@ -231,7 +235,13 @@ func (c *cluster) gossip(msg *proto.Message) {
 }
 
 func (c *cluster) maxFaulty() uint64 {
-	return (uint64(len(c.nodes)) - 1) / 3
+	totalVotingPower := big.NewInt(int64(len(c.nodes)) * testVotingPower)
+	quorum := calculateQuorum(totalVotingPower)
+	one := big.NewInt(1)
+	minQuorumNodes := quorum.Sub(quorum, one).Div(quorum, big.NewInt(testVotingPower)).Add(quorum, one).Uint64()
+
+	// - 1 because for loops for changing nodes behavior start from 0
+	return uint64(len(c.nodes)) - minQuorumNodes - 1
 }
 
 func (c *cluster) makeNByzantine(num int) {
@@ -263,7 +273,7 @@ func testCommonGetVotingPowertFn(nodes [][]byte) func(u uint64) (map[string]*big
 		result := map[string]*big.Int{}
 
 		for _, x := range nodes {
-			result[string(x)] = big.NewInt(1)
+			result[string(x)] = big.NewInt(testVotingPower)
 		}
 
 		return result, nil
@@ -275,7 +285,7 @@ func testCommonGetVotingPowertFnForCnt(nodesCnt uint64) func(u uint64) (map[stri
 		result := map[string]*big.Int{}
 
 		for i := 0; i < int(nodesCnt); i++ {
-			result[fmt.Sprintf("node %d", i)] = big.NewInt(1)
+			result[fmt.Sprintf("node %d", i)] = big.NewInt(testVotingPower)
 		}
 
 		return result, nil
@@ -287,7 +297,7 @@ func testCommonGetVotingPowertFnForNodes(nodes []*node) func(u uint64) (map[stri
 		result := map[string]*big.Int{}
 
 		for _, x := range nodes {
-			result[string(x.address)] = big.NewInt(1)
+			result[string(x.address)] = big.NewInt(testVotingPower)
 		}
 
 		return result, nil
