@@ -163,12 +163,15 @@ func (vm *ValidatorManager) HasRoundChangeQuorum(currentRound uint64, sendersAdd
 	return messageVotePower.Cmp(vm.rcMinQuorum) >= 0
 }
 
-// calculateQuorum calculates quorum size which is FLOOR(2 * totalVotingPower / 3) + 1
+// calculateQuorum calculates quorum size which is (614/1000 = 61.4%) + 1 of total voting power.
+// In case voting power is below 10, we set quorum to total voting power
 func calculateQuorum(totalVotingPower *big.Int) *big.Int {
-	quorum := new(big.Int).Mul(totalVotingPower, big.NewInt(2))
+	quorum := new(big.Int)
+	if totalVotingPower.Cmp(big.NewInt(10)) == -1 {
+		return quorum.Add(quorum, totalVotingPower)
+	}
 
-	// this will floor the (2 * totalVotingPower/3) and add 1
-	return quorum.Div(quorum, big.NewInt(3)).Add(quorum, big.NewInt(1))
+	return quorum.Mul(totalVotingPower, big.NewInt(614)).Div(quorum, big.NewInt(1000)).Add(quorum, big.NewInt(1))
 }
 
 // calculateRCMinQuorum calculates a special RC quorum size

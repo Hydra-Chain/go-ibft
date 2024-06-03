@@ -28,7 +28,7 @@ func Test_CalculateQuorum(t *testing.T) {
 				"C": big.NewInt(1),
 				"D": big.NewInt(1),
 			},
-			// all 4 signed, has quorum (quorum is 3)
+			// all 4 signed, has quorum (quorum is 4)
 			signers: map[string]struct{}{
 				"A": {},
 				"B": {},
@@ -45,7 +45,7 @@ func Test_CalculateQuorum(t *testing.T) {
 				"C": big.NewInt(1),
 				"D": big.NewInt(1),
 			},
-			// only two signed (quorum is 3)
+			// only two signed (quorum is 4)
 			signers: map[string]struct{}{
 				"A": {},
 				"B": {},
@@ -53,115 +53,71 @@ func Test_CalculateQuorum(t *testing.T) {
 			hasQuorum: false,
 		},
 		{
-			// case total voting power of 6
+			// case total voting power of 9
 			validatorsVotingPower: map[string]*big.Int{
-				"A": big.NewInt(1),
-				"B": big.NewInt(1),
-				"C": big.NewInt(1),
-				"D": big.NewInt(1),
+				"A": big.NewInt(2),
+				"B": big.NewInt(2),
+				"C": big.NewInt(2),
+				"D": big.NewInt(2),
 				"E": big.NewInt(1),
-				"F": big.NewInt(1),
 			},
-			// 5 signed (quorum should be 5)
+			// 8 signed (quorum should be 9)
 			signers: map[string]struct{}{
 				"A": {},
 				"B": {},
 				"C": {},
 				"D": {},
+			},
+			hasQuorum: false,
+		},
+		{
+			// case total voting power of 10
+			validatorsVotingPower: map[string]*big.Int{
+				"A": big.NewInt(2),
+				"B": big.NewInt(2),
+				"C": big.NewInt(2),
+				"D": big.NewInt(2),
+				"E": big.NewInt(1),
+				"F": big.NewInt(1),
+			},
+			// 7 signed (quorum should be 7)
+			signers: map[string]struct{}{
+				"A": {},
+				"B": {},
+				"C": {},
 				"E": {},
 			},
 			hasQuorum: true,
 		},
 		{
-			// case total voting power of 6
+			// case total voting power of 10
 			validatorsVotingPower: map[string]*big.Int{
-				"A": big.NewInt(1),
-				"B": big.NewInt(1),
-				"C": big.NewInt(1),
-				"D": big.NewInt(1),
+				"A": big.NewInt(2),
+				"B": big.NewInt(2),
+				"C": big.NewInt(2),
+				"D": big.NewInt(2),
 				"E": big.NewInt(1),
 				"F": big.NewInt(1),
 			},
-			// only 4 signed (quorum should be 5)
+			// 6 signed (quorum should be 7)
 			signers: map[string]struct{}{
 				"A": {},
 				"B": {},
 				"C": {},
-				"D": {},
 			},
 			hasQuorum: false,
 		},
 		{
-			// case total voting power of 9
+			// case total voting power of 60
 			validatorsVotingPower: map[string]*big.Int{
-				"A": big.NewInt(2),
-				"B": big.NewInt(2),
-				"C": big.NewInt(2),
-				"D": big.NewInt(3),
+				"A": big.NewInt(17),
+				"B": big.NewInt(10),
+				"C": big.NewInt(10),
+				"D": big.NewInt(10),
+				"E": big.NewInt(10),
+				"F": big.NewInt(3),
 			},
-			// 3 signed with voting power of 6 (quorum should be 7)
-			signers: map[string]struct{}{
-				"A": {},
-				"C": {},
-				"D": {},
-			},
-			hasQuorum: true,
-		},
-		{
-			// case total voting power of 9
-			validatorsVotingPower: map[string]*big.Int{
-				"A": big.NewInt(2),
-				"B": big.NewInt(2),
-				"C": big.NewInt(2),
-				"D": big.NewInt(3),
-			},
-			// only 2 signed with voting power of 5 (quorum should be 7)
-			signers: map[string]struct{}{
-				"A": {},
-				"D": {},
-			},
-			hasQuorum: false,
-		},
-		{
-			// case total voting power of 10
-			validatorsVotingPower: map[string]*big.Int{
-				"A": big.NewInt(2),
-				"B": big.NewInt(2),
-				"C": big.NewInt(3),
-				"D": big.NewInt(3),
-			},
-			// 3 signed with voting power of 7 (quorum should be 7)
-			signers: map[string]struct{}{
-				"A": {},
-				"B": {},
-				"D": {},
-			},
-			hasQuorum: true,
-		},
-		{
-			// case total voting power of 10
-			validatorsVotingPower: map[string]*big.Int{
-				"A": big.NewInt(2),
-				"B": big.NewInt(2),
-				"C": big.NewInt(3),
-				"D": big.NewInt(3),
-			},
-			// only 2 signed with voting power of 5 (quorum should be 7)
-			signers: map[string]struct{}{
-				"A": {},
-				"D": {},
-			},
-			hasQuorum: false,
-		},
-		{
-			// case total voting power of 21
-			validatorsVotingPower: map[string]*big.Int{
-				"A": big.NewInt(2),
-				"B": big.NewInt(7),
-				"C": big.NewInt(7),
-				"D": big.NewInt(5),
-			},
-			// 3 signed with voting power of 16 (quorum should be 15)
+			// only 37 signed (quorum should be 37)
 			signers: map[string]struct{}{
 				"A": {},
 				"B": {},
@@ -170,17 +126,116 @@ func Test_CalculateQuorum(t *testing.T) {
 			hasQuorum: true,
 		},
 		{
-			// case total voting power of 21
+			// case total voting power of 60
 			validatorsVotingPower: map[string]*big.Int{
-				"A": big.NewInt(2),
-				"B": big.NewInt(7),
-				"C": big.NewInt(7),
-				"D": big.NewInt(5),
+				"A": big.NewInt(16),
+				"B": big.NewInt(10),
+				"C": big.NewInt(10),
+				"D": big.NewInt(10),
+				"E": big.NewInt(10),
+				"F": big.NewInt(3),
 			},
-			// only 2 signed with voting power of 12 (quorum should be 15)
+			// only 36 signed (quorum should be 37)
 			signers: map[string]struct{}{
+				"A": {},
+				"B": {},
+				"C": {},
+			},
+			hasQuorum: false,
+		},
+		{
+			// case total voting power of 90
+			validatorsVotingPower: map[string]*big.Int{
+				"A": big.NewInt(20),
+				"B": big.NewInt(20),
+				"C": big.NewInt(16),
+				"D": big.NewInt(34),
+			},
+			// 3 signed with voting power of 56 (quorum should be 56)
+			signers: map[string]struct{}{
+				"A": {},
 				"C": {},
 				"D": {},
+			},
+			hasQuorum: true,
+		},
+		{
+			// case total voting power of 90
+			validatorsVotingPower: map[string]*big.Int{
+				"A": big.NewInt(20),
+				"B": big.NewInt(20),
+				"C": big.NewInt(15),
+				"D": big.NewInt(35),
+			},
+			// 3 signed with voting power of 55 (quorum should be 56)
+			signers: map[string]struct{}{
+				"A": {},
+				"B": {},
+				"C": {},
+			},
+			hasQuorum: false,
+		},
+		{
+			// case total voting power of 2100
+			validatorsVotingPower: map[string]*big.Int{
+				"A": big.NewInt(290),
+				"B": big.NewInt(810),
+				"C": big.NewInt(500),
+				"D": big.NewInt(500),
+			},
+			// 3 signed with voting power of 1290 (quorum should be 1290)
+			signers: map[string]struct{}{
+				"A": {},
+				"C": {},
+				"D": {},
+			},
+			hasQuorum: true,
+		},
+		{
+			// case total voting power of 2100
+			validatorsVotingPower: map[string]*big.Int{
+				"A": big.NewInt(289),
+				"B": big.NewInt(811),
+				"C": big.NewInt(500),
+				"D": big.NewInt(500),
+			},
+			// 3 signed with voting power of 1289 (quorum should be 1290)
+			signers: map[string]struct{}{
+				"A": {},
+				"C": {},
+				"D": {},
+			},
+			hasQuorum: false,
+		},
+		{
+			// case total voting power of 19,128,543
+			validatorsVotingPower: map[string]*big.Int{
+				"A": big.NewInt(3914974),
+				"B": big.NewInt(3914976),
+				"C": big.NewInt(3914975),
+				"D": big.NewInt(7383617),
+			},
+			// 3 signed with voting power of 11,744,926 (quorum should be 11,744,926)
+			signers: map[string]struct{}{
+				"A": {},
+				"B": {},
+				"C": {},
+			},
+			hasQuorum: true,
+		},
+		{
+			// case total voting power of 19,128,543
+			validatorsVotingPower: map[string]*big.Int{
+				"A": big.NewInt(3914974),
+				"B": big.NewInt(3914975),
+				"C": big.NewInt(3914975),
+				"D": big.NewInt(7383618),
+			},
+			// 3 signed with voting power of 11,744,925 (quorum should be 11,744,926)
+			signers: map[string]struct{}{
+				"A": {},
+				"B": {},
+				"C": {},
 			},
 			hasQuorum: false,
 		},
