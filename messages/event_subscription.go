@@ -1,7 +1,7 @@
 package messages
 
 import (
-	"github.com/0xPolygon/go-ibft/messages/proto"
+	"github.com/Hydra-Chain/go-ibft/messages/proto"
 )
 
 type eventSubscription struct {

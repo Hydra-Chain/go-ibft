@@ -82,9 +82,8 @@ linters-settings:
     numbers: true
 
   goimports:
-    local-prefixes: github.com/0xPolygon/go-ibft
-                    github.com/armon/go-metrics
-    
+    local-prefixes: github.com/Hydra-Chain/go-ibft
+      github.com/armon/go-metrics
 
   nestif:
     min-complexity: 4

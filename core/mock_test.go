@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/0xPolygon/go-ibft/messages"
-	"github.com/0xPolygon/go-ibft/messages/proto"
+	"github.com/Hydra-Chain/go-ibft/messages"
+	"github.com/Hydra-Chain/go-ibft/messages/proto"
 )
 
 const (
@@ -559,5 +559,28 @@ func (m *mockCluster) areAllNodesOnRound(round uint64) bool {
 func (m *mockCluster) setBaseTimeout(timeout time.Duration) {
 	for _, node := range m.nodes {
 		node.baseRoundTimeout = timeout
+	}
+}
+
+// IBFT state mock so we can replicate conditions where validators have huge round state differences
+type mockState struct {
+	*state
+	desiredStartRound uint64
+}
+
+func (s *mockState) reset(height uint64) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.seals = nil
+	s.roundStarted = false
+	s.name = newRound
+	s.proposalMessage = nil
+	s.latestPC = nil
+	s.latestPreparedProposal = nil
+
+	s.view = &proto.View{
+		Height: height,
+		Round:  s.desiredStartRound,
 	}
 }

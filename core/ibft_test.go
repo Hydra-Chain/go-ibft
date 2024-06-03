@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/0xPolygon/go-ibft/messages"
-	"github.com/0xPolygon/go-ibft/messages/proto"
+	"github.com/Hydra-Chain/go-ibft/messages"
+	"github.com/Hydra-Chain/go-ibft/messages/proto"
 )
 
 func proposalMatches(proposal *proto.Proposal, message *proto.Message) bool {
@@ -284,10 +284,10 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			i.wg.Wait()
 
 			// Make sure the node is in prepare state
-			assert.Equal(t, prepare, i.state.name)
+			assert.Equal(t, prepare, i.state.getStateName())
 
 			// Make sure the accepted proposal is the one proposed to other nodes
-			assert.Equal(t, multicastedProposal, i.state.proposalMessage)
+			assert.Equal(t, multicastedProposal, i.state.getProposalMessage())
 
 			// Make sure the accepted proposal matches what was built
 			assert.True(
@@ -412,10 +412,10 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			i.wg.Wait()
 
 			// Make sure the node changed the state to prepare
-			assert.Equal(t, prepare, i.state.name)
+			assert.Equal(t, prepare, i.state.getStateName())
 
 			// Make sure the multicasted proposal is the accepted proposal
-			assert.Equal(t, multicastedPreprepare, i.state.proposalMessage)
+			assert.Equal(t, multicastedPreprepare, i.state.getProposalMessage())
 
 			// Make sure the correct proposal value was multicasted
 			assert.True(t, proposalMatches(correctRoundMessage.proposal, multicastedPreprepare))
@@ -584,10 +584,10 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			i.wg.Wait()
 
 			// Make sure the node changed the state to prepare
-			assert.Equal(t, prepare, i.state.name)
+			assert.Equal(t, prepare, i.state.getStateName())
 
 			// Make sure the multicasted proposal is the accepted proposal
-			assert.Equal(t, multicastedPreprepare, i.state.proposalMessage)
+			assert.Equal(t, multicastedPreprepare, i.state.getProposalMessage())
 
 			// Make sure the correct proposal was multicasted
 			assert.True(t, proposalMatches(lastPreparedProposedProposal, multicastedPreprepare))
@@ -687,7 +687,7 @@ func TestRunNewRound_Validator_Zero(t *testing.T) {
 	i.wg.Wait()
 
 	// Make sure the node moves to prepare state
-	assert.Equal(t, prepare, i.state.name)
+	assert.Equal(t, prepare, i.state.getStateName())
 
 	// Make sure the accepted proposal is the one that was sent out
 	assert.Equal(t, correctRoundMessage.proposal, i.state.getProposal())
@@ -854,7 +854,7 @@ func TestRunNewRound_Validator_NonZero(t *testing.T) {
 			i.wg.Wait()
 
 			// Make sure the node moves to prepare state
-			assert.Equal(t, prepare, i.state.name)
+			assert.Equal(t, prepare, i.state.getStateName())
 
 			// Make sure the accepted proposal is the one that was sent out
 			assert.Equal(t, roundMessage.proposal, i.state.getProposal())
@@ -940,16 +940,16 @@ func TestRunPrepare(t *testing.T) {
 
 			i := NewIBFT(log, backend, transport)
 			require.NoError(t, i.validatorManager.Init(0))
-			i.state.name = prepare
-			i.state.roundStarted = true
-			i.state.proposalMessage = &proto.Message{
+			i.state.changeState(prepare)
+			i.state.setRoundStarted(true)
+			i.state.setProposalMessage(&proto.Message{
 				Payload: &proto.Message_PreprepareData{
 					PreprepareData: &proto.PrePrepareMessage{
 						Proposal:     correctRoundMessage.proposal,
 						ProposalHash: correctRoundMessage.hash,
 					},
 				},
-			}
+			})
 			i.messages = &messages
 
 			// Make sure the notification is present
@@ -961,7 +961,7 @@ func TestRunPrepare(t *testing.T) {
 			i.wg.Wait()
 
 			// Make sure the node moves to the commit state
-			assert.Equal(t, commit, i.state.name)
+			assert.Equal(t, commit, i.state.getStateName())
 
 			// Make sure the proposal didn't change
 			assert.Equal(t, correctRoundMessage.proposal, i.state.getProposal())
@@ -1044,16 +1044,16 @@ func TestRunCommit(t *testing.T) {
 			i := NewIBFT(log, backend, transport)
 			require.NoError(t, i.validatorManager.Init(0))
 			i.messages = messages
-			i.state.proposalMessage = &proto.Message{
+			i.state.setProposalMessage(&proto.Message{
 				Payload: &proto.Message_PreprepareData{
 					PreprepareData: &proto.PrePrepareMessage{
 						Proposal:     correctRoundMessage.proposal,
 						ProposalHash: correctRoundMessage.hash,
 					},
 				},
-			}
-			i.state.roundStarted = true
-			i.state.name = commit
+			})
+			i.state.setRoundStarted(true)
+			i.state.changeState(commit)
 
 			ctx, cancelFn := context.WithCancel(context.Background())
 
@@ -1083,7 +1083,7 @@ func TestRunCommit(t *testing.T) {
 			i.insertBlock()
 
 			// Make sure the node changed the state to fin
-			require.Equal(t, fin, i.state.name)
+			require.Equal(t, fin, i.state.getStateName())
 
 			// Make sure the inserted proposal was the one present
 			require.Equal(t, insertedProposal, correctRoundMessage.proposal.RawProposal)
@@ -1204,7 +1204,7 @@ func TestIBFT_IsAcceptableMessage(t *testing.T) {
 			)
 
 			i := NewIBFT(log, backend, transport)
-			i.state.view = testCase.stateView
+			i.state.setView(testCase.stateView)
 
 			message := &proto.Message{
 				View: testCase.msgView,
@@ -1319,7 +1319,7 @@ func TestIBFT_MoveToNewRound(t *testing.T) {
 		assert.Nil(t, i.state.getProposal())
 
 		// Make sure the state is correct
-		assert.Equal(t, newRound, i.state.name)
+		assert.Equal(t, newRound, i.state.getStateName())
 	})
 }
 
@@ -2968,17 +2968,17 @@ func TestIBFT_RunSequence_NewProposal(t *testing.T) {
 	i.RunSequence(ctx, height)
 
 	// Make sure the correct proposal message was accepted
-	assert.Equal(t, ev.proposalMessage, i.state.proposalMessage)
+	assert.Equal(t, ev.proposalMessage, i.state.getProposalMessage())
 
 	// Make sure the correct round was moved to
-	assert.Equal(t, ev.round, i.state.view.Round)
-	assert.Equal(t, height, i.state.view.Height)
+	assert.Equal(t, ev.round, i.state.getView().Round)
+	assert.Equal(t, height, i.state.getView().Height)
 
 	// Make sure the round has been started
-	assert.True(t, i.state.roundStarted)
+	assert.True(t, i.state.getRoundStarted())
 
 	// Make sure the state is the prepare state
-	assert.Equal(t, prepare, i.state.name)
+	assert.Equal(t, prepare, i.state.getStateName())
 }
 
 // TestIBFT_RunSequence_FutureRCC verifies that the
@@ -3017,17 +3017,17 @@ func TestIBFT_RunSequence_FutureRCC(t *testing.T) {
 	i.RunSequence(ctx, height)
 
 	// Make sure the proposal message is not set
-	assert.Nil(t, i.state.proposalMessage)
+	assert.Nil(t, i.state.getProposalMessage())
 
 	// Make sure the correct round was moved to
-	assert.Equal(t, round, i.state.view.Round)
-	assert.Equal(t, height, i.state.view.Height)
+	assert.Equal(t, round, i.state.getView().Round)
+	assert.Equal(t, height, i.state.getView().Height)
 
 	// Make sure the new round has been started
-	assert.True(t, i.state.roundStarted)
+	assert.True(t, i.state.getRoundStarted())
 
 	// Make sure the state is the new round state
-	assert.Equal(t, newRound, i.state.name)
+	assert.Equal(t, newRound, i.state.getStateName())
 }
 
 // TestIBFT_ExtendRoundTimer makes sure the round timeout
@@ -3166,7 +3166,7 @@ func TestIBFT_AddMessage(t *testing.T) {
 		i := NewIBFT(log, backend, transport)
 		require.NoError(t, i.validatorManager.Init(0))
 		i.messages = messages
-		i.state.view = &proto.View{Height: validHeight, Round: validRound}
+		i.state.setView(&proto.View{Height: validHeight, Round: validRound})
 
 		i.AddMessage(msg)
 

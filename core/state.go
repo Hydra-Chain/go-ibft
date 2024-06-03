@@ -3,8 +3,8 @@ package core
 import (
 	"sync"
 
-	"github.com/0xPolygon/go-ibft/messages"
-	"github.com/0xPolygon/go-ibft/messages/proto"
+	"github.com/Hydra-Chain/go-ibft/messages"
+	"github.com/Hydra-Chain/go-ibft/messages/proto"
 )
 
 type stateType uint8
@@ -172,6 +172,13 @@ func (s *state) changeState(name stateType) {
 	defer s.Unlock()
 
 	s.name = name
+}
+
+func (s *state) getRoundStarted() bool {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.roundStarted
 }
 
 func (s *state) setRoundStarted(started bool) {

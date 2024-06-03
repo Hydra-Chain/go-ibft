@@ -191,3 +191,181 @@ func Test_CalculateQuorum(t *testing.T) {
 		require.Equal(t, c.hasQuorum, vm.HasQuorum(c.signers))
 	}
 }
+
+func Test_calculateRCMinQuorum(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		totalVotingPower *big.Int
+		expected         *big.Int
+	}{
+		{
+			totalVotingPower: big.NewInt(9),
+			expected:         nil,
+		},
+		{
+			totalVotingPower: big.NewInt(10),
+			expected:         big.NewInt(3),
+		},
+		{
+			totalVotingPower: big.NewInt(115),
+			expected:         big.NewInt(34),
+		},
+		{
+			totalVotingPower: big.NewInt(1085),
+			expected:         big.NewInt(325),
+		},
+		{
+			totalVotingPower: big.NewInt(12763),
+			expected:         big.NewInt(3828),
+		},
+		{
+			totalVotingPower: big.NewInt(999999999),
+			expected:         big.NewInt(299999999),
+		},
+	}
+
+	for _, c := range cases {
+		require.Equal(t, c.expected, calculateRCMinQuorum(c.totalVotingPower))
+	}
+}
+
+func Test_HasRoundChangeQuorum(t *testing.T) {
+	t.Parallel()
+
+	vm := &ValidatorManager{
+		vpLock: &sync.RWMutex{},
+	}
+
+	cases := []struct {
+		round                 uint64
+		validatorsVotingPower map[string]*big.Int
+		hasQuorum             bool
+		signers               map[string]struct{}
+	}{
+		{
+			round: 5,
+			validatorsVotingPower: map[string]*big.Int{
+				"A": big.NewInt(1),
+			},
+			signers:   map[string]struct{}{},
+			hasQuorum: false,
+		},
+		{
+			round: 5,
+			validatorsVotingPower: map[string]*big.Int{
+				"A": big.NewInt(1),
+			},
+			signers: map[string]struct{}{
+				"A": {},
+			},
+			hasQuorum: true,
+		},
+		{
+			round: 5,
+			validatorsVotingPower: map[string]*big.Int{
+				"A": big.NewInt(4),
+				"B": big.NewInt(4),
+			},
+			signers: map[string]struct{}{
+				"A": {},
+			},
+			hasQuorum: false,
+		},
+		{
+			round: 6,
+			validatorsVotingPower: map[string]*big.Int{
+				"A": big.NewInt(4),
+				"B": big.NewInt(4),
+			},
+			signers: map[string]struct{}{
+				"A": {},
+			},
+			hasQuorum: false,
+		},
+		{
+			round: 5,
+			validatorsVotingPower: map[string]*big.Int{
+				"A": big.NewInt(5),
+				"B": big.NewInt(5),
+			},
+			signers: map[string]struct{}{
+				"A": {},
+			},
+			hasQuorum: false,
+		},
+		{
+			round: 6,
+			validatorsVotingPower: map[string]*big.Int{
+				"A": big.NewInt(5),
+				"B": big.NewInt(5),
+			},
+			signers: map[string]struct{}{
+				"A": {},
+			},
+			hasQuorum: true,
+		},
+		{
+			round: 6,
+			validatorsVotingPower: map[string]*big.Int{
+				"A": big.NewInt(2),
+				"B": big.NewInt(7),
+				"C": big.NewInt(6),
+				"D": big.NewInt(6),
+			},
+			signers: map[string]struct{}{
+				"C": {},
+			},
+			hasQuorum: true,
+		},
+		{
+			round: 6,
+			validatorsVotingPower: map[string]*big.Int{
+				"A": big.NewInt(6),
+				"B": big.NewInt(7),
+				"C": big.NewInt(6),
+				"D": big.NewInt(6),
+			},
+			signers: map[string]struct{}{
+				"C": {},
+			},
+			hasQuorum: false,
+		},
+		{
+			round: 6,
+			validatorsVotingPower: map[string]*big.Int{
+				"A": big.NewInt(15783),
+				"B": big.NewInt(11432),
+				"C": big.NewInt(13242),
+				"D": big.NewInt(14324),
+				"E": big.NewInt(32141),
+			},
+			signers: map[string]struct{}{
+				"B": {},
+				"C": {},
+			},
+			hasQuorum: false,
+		},
+		{
+			round: 6,
+			validatorsVotingPower: map[string]*big.Int{
+				"A": big.NewInt(15783),
+				"B": big.NewInt(11432),
+				"C": big.NewInt(13242),
+				"D": big.NewInt(14324),
+				"E": big.NewInt(32141),
+			},
+			signers: map[string]struct{}{
+				"B": {},
+				"C": {},
+				"D": {},
+			},
+			hasQuorum: true,
+		},
+	}
+
+	for _, c := range cases {
+		require.NoError(t, vm.setCurrentVotingPower(c.validatorsVotingPower))
+		require.Equal(t, c.hasQuorum, vm.HasRoundChangeQuorum(c.round, c.signers))
+	}
+}

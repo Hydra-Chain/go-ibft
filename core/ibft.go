@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/0xPolygon/go-ibft/messages"
-	"github.com/0xPolygon/go-ibft/messages/proto"
+	"github.com/Hydra-Chain/go-ibft/messages"
+	"github.com/Hydra-Chain/go-ibft/messages/proto"
 	"github.com/armon/go-metrics"
 )
 
@@ -45,10 +45,36 @@ type Messages interface {
 	Unsubscribe(id messages.SubscriptionID)
 }
 
+// State represents the IBFT state
+type State interface {
+	changeState(name stateType)
+	finalizePrepare(certificate *proto.PreparedCertificate, latestPPB *proto.Proposal)
+	getCommittedSeals() []*messages.CommittedSeal
+	getHeight() uint64
+	getLatestPC() *proto.PreparedCertificate
+	getLatestPreparedProposal() *proto.Proposal
+	getProposal() *proto.Proposal
+	getProposalHash() []byte
+	getProposalMessage() *proto.Message
+	getRawDataFromProposal() []byte
+	getRound() uint64
+	getRoundStarted() bool
+	getStateName() stateType
+	getView() *proto.View
+	newRound()
+	reset(height uint64)
+	setCommittedSeals(seals []*messages.CommittedSeal)
+	setProposalMessage(proposalMessage *proto.Message)
+	setRoundStarted(started bool)
+	setView(view *proto.View)
+}
+
 const (
 	// DefaultBaseRoundTimeout is the default base round (round 0) timeout
 	DefaultBaseRoundTimeout = 10 * time.Second
 	roundFactorBase         = float64(2)
+	longRoundThreshold      = 5 // Rounds above that are considered too long, so additional sync mechanisms are applied
+	periodicTaskInteval     = 30 * time.Second
 )
 
 var (
@@ -61,7 +87,7 @@ type IBFT struct {
 	log Logger
 
 	// state is the current IBFT node state
-	state *state
+	state State
 
 	// messages is the message storage layer
 	messages Messages
@@ -346,6 +372,8 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 		// Start the state machine worker
 		go i.startRound(ctxRound)
 
+		i.notifyRoundChange(ctxRound, view)
+
 		teardown := func() {
 			cancelRound()
 			i.wg.Wait()
@@ -415,12 +443,37 @@ func (i *IBFT) startRound(ctx context.Context) {
 		i.acceptProposal(proposalMessage)
 		i.log.Debug("block proposal accepted")
 
-		i.sendPreprepareMessage(proposalMessage)
+		i.notifyPreprepare(ctx, view.Round, proposalMessage)
 
 		i.log.Debug("pre-prepare message multicasted")
 	}
 
 	i.runStates(ctx)
+}
+
+// notifyRoundChange multicast the round change message on a given interval in case round is above longRoundThreshold
+// That way new nodes can collect info about the round of the others to restore faster on halting
+func (i *IBFT) notifyRoundChange(ctx context.Context, view *proto.View) {
+	if view.Round > longRoundThreshold {
+		go runTaskPeriodically(ctx, &i.wg, func() {
+			i.sendRoundChangeMessage(view.Height, view.Round)
+		}, periodicTaskInteval)
+	}
+}
+
+// notifyPreprepare multicast the preprepare message.
+// Continue sending the preprepare message in case round is above longRoundThreshold.
+// That way new nodes can enter the prepare phase
+func (i *IBFT) notifyPreprepare(ctx context.Context, currentRound uint64, message *proto.Message) {
+	if currentRound > longRoundThreshold {
+		go runTaskPeriodically(ctx, &i.wg, func() {
+			i.sendPreprepareMessage(message)
+		}, periodicTaskInteval)
+
+		return
+	}
+
+	i.sendPreprepareMessage(message)
 }
 
 // waitForRCC waits for valid RCC for the specified height and round
@@ -1271,7 +1324,9 @@ func (i *IBFT) hasQuorumByMsgType(msgs []*proto.Message, msgType proto.MessageTy
 		return len(msgs) >= 1
 	case proto.MessageType_PREPARE:
 		return i.validatorManager.HasPrepareQuorum(i.state.getStateName(), i.state.getProposalMessage(), msgs)
-	case proto.MessageType_ROUND_CHANGE, proto.MessageType_COMMIT:
+	case proto.MessageType_ROUND_CHANGE:
+		return i.validatorManager.HasRoundChangeQuorum(i.state.getRound(), convertMessageToAddressSet(msgs))
+	case proto.MessageType_COMMIT:
 		return i.validatorManager.HasQuorum(convertMessageToAddressSet(msgs))
 	default:
 		return false
@@ -1300,6 +1355,10 @@ func (i *IBFT) subscribe(details messages.SubscriptionDetails) *messages.Subscri
 //   - round 3: 4 sec
 //   - round 4: 8 sec
 func getRoundTimeout(baseRoundTimeout, additionalTimeout time.Duration, round uint64) time.Duration {
+	if round > longRoundThreshold {
+		return 10 * time.Minute
+	}
+
 	var (
 		baseDuration = int(baseRoundTimeout)
 		roundFactor  = int(math.Pow(roundFactorBase, float64(round)))

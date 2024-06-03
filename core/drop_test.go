@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/0xPolygon/go-ibft/messages"
-	"github.com/0xPolygon/go-ibft/messages/proto"
+	"github.com/Hydra-Chain/go-ibft/messages"
+	"github.com/Hydra-Chain/go-ibft/messages/proto"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -77,6 +77,93 @@ func TestDropAllAndRecover(t *testing.T) {
 	// Start all and expect valid blocks to be written again
 	cluster.startN(len(cluster.nodes))
 	assert.NoError(t, cluster.progressToHeight(5*time.Second, 10))
+	assertValidInsertedBlocks(t, insertedBlocks) // Make sure the inserted blocks are valid
+}
+
+func TestRecoverFromDifferentRounds(t *testing.T) {
+	t.Parallel()
+
+	var (
+		numNodes       = uint64(10)
+		insertedBlocks = make([][]byte, numNodes)
+		desiredRounds  = []uint64{
+			5,
+			6,
+			6,
+			7,
+			4,
+			9, // we have 30% nodes on a higher round
+			9, // others will move there
+			9,
+			7,
+			5,
+		}
+	)
+
+	cluster := newCluster(
+		numNodes,
+		func(c *cluster) {
+			for nodeIndex, node := range c.nodes {
+				i := nodeIndex
+				currentNode := node
+				backend := &mockBackend{
+					isValidProposalFn:      isValidProposal,
+					isValidProposalHashFn:  isValidProposalHash,
+					IsValidValidatorFn:     nil,
+					isValidCommittedSealFn: nil,
+					isProposerFn:           c.isProposer,
+
+					idFn: node.addr,
+
+					buildProposalFn:           buildValidEthereumBlock,
+					buildPrePrepareMessageFn:  node.buildPrePrepare,
+					buildPrepareMessageFn:     node.buildPrepare,
+					buildCommitMessageFn:      node.buildCommit,
+					buildRoundChangeMessageFn: node.buildRoundChange,
+
+					insertProposalFn: func(proposal *proto.Proposal, _ []*messages.CommittedSeal) {
+						insertedBlocks[i] = proposal.RawProposal
+					},
+					getVotingPowerFn: testCommonGetVotingPowertFnForNodes(c.nodes),
+				}
+				node.core = &IBFT{
+					log:     mockLogger{},
+					backend: backend,
+					transport: &mockTransport{multicastFn: func(message *proto.Message) {
+						if currentNode.offline {
+							return
+						}
+
+						c.gossip(message)
+					}},
+					messages:         messages.NewMessages(),
+					roundDone:        make(chan struct{}),
+					roundExpired:     make(chan struct{}),
+					newProposal:      make(chan newProposalEvent),
+					roundCertificate: make(chan uint64),
+					state: &mockState{
+						state: &state{
+							view: &proto.View{
+								Height: 0,
+								Round:  desiredRounds[nodeIndex],
+							},
+							seals:        make([]*messages.CommittedSeal, 0),
+							roundStarted: false,
+							name:         newRound,
+						},
+						desiredStartRound: desiredRounds[nodeIndex],
+					},
+					baseRoundTimeout: DefaultBaseRoundTimeout,
+					validatorManager: NewValidatorManager(backend, mockLogger{}),
+				}
+			}
+		},
+	)
+
+	// Progress the chain to claim it works ok
+	err := cluster.progressToHeight(180*time.Second, 1)
+	assert.NoError(t, err, "unable to reach height: %w", err)
+	assert.Equal(t, uint64(1), cluster.latestHeight)
 	assertValidInsertedBlocks(t, insertedBlocks) // Make sure the inserted blocks are valid
 }
 
