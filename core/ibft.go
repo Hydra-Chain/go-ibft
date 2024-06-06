@@ -997,6 +997,15 @@ func (i *IBFT) handleCommit(view *proto.View) bool {
 		return false
 	}
 
+	// wait additional 0.2 seconds so more commit messages to be collected
+	time.Sleep(200 * time.Millisecond)
+
+	commitMessages = i.messages.GetValidMessages(view, proto.MessageType_COMMIT, isValidCommit)
+	if !i.hasQuorumByMsgType(commitMessages, proto.MessageType_COMMIT) {
+		//	unexpected but check it just in case
+		return false
+	}
+
 	commitSeals, err := messages.ExtractCommittedSeals(commitMessages)
 	if err != nil {
 		// safe check
